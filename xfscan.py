@@ -8,6 +8,7 @@ from sys import stderr, stdout
 import time
 import asyncio
 from aiomultiprocess import Pool
+import logging
 
 from fscanOutput2Csv import OpenFile, OpenPort
 
@@ -99,7 +100,8 @@ def init_dir():
         "\\OpenPort",
         "\\OsList",
         "\\Title",
-        "\\WeakPasswd"
+        "\\WeakPasswd",
+        "\\ScanLogs"
     ]
 
     mkdir(scanResult_path)
@@ -172,37 +174,83 @@ async def run_fs(ips):
     ips = ips.strip()
     # print(ips)
 
-    # res = asyncio.subprocess.create_subprocess_exec()
-
-    # you can customize the command here.
-    # scan_cmd = "ping" + f" -w 1 -n 1 {ips.replace('/24','')} | findstr /i 'ttl='"
-
-    scan_cmd = fs_exe + f" -np -nobr -h {ips} -o {scanResult_tmp_path}\\{ips.split('/')[0].replace('.','_')}_24.txt"
-
-    # scan_cmd = fs_exe + \
-    #     f" -np -nopoc -nobr -p 22,135,445,5985,80,443,8443,8080,3389 -h {ips} -o {scanResult_tmp_path}\\{ips.split('/')[0].replace('.','_')}_24.txt"
-
     
-    scan_start_time = time.time()
-    proc = await asyncio.subprocess.create_subprocess_shell(
-        scan_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
+    if ips == "10.75.0.1/24":
+        print(f"[!] Damn, it is printer ip segments: {ips} , we need ignore it...")
+    else:
+    
+        # res = asyncio.subprocess.create_subprocess_exec()
 
-    stdout, stderr = await proc.communicate()
+        # you can customize the command here.
+        # scan_cmd = "ping" + f" -w 1 -n 1 {ips.replace('/24','')} | findstr /i 'ttl='"
 
-    if stdout:
-        pass
-        # print(str(stdout))
+        scan_cmd = fs_exe + f" -np -nobr -h {ips} -o {scanResult_tmp_path}\\{ips.split('/')[0].replace('.','_')}_24.txt"
 
-    if stderr:
-        pass
+        # scan_cmd = fs_exe + \
+        #     f" -np -nopoc -nobr -p 22,135,445,5985,80,443,8443,8080,3389 -h {ips} -o {scanResult_tmp_path}\\{ips.split('/')[0].replace('.','_')}_24.txt"
 
-    scan_end_time = time.time()
-    scan_costs_time = scan_end_time - scan_start_time
-    print(
-        f"  | [+] Task \033[31;1m{ips}\033[0m complete, it costs \033[31;1m{scan_costs_time}s\033[0m")
+        
+        scan_start_time = time.time()
+        proc = await asyncio.subprocess.create_subprocess_shell(
+            scan_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await proc.communicate()
+
+        if not stdout:
+            print(f"[-] No stdout, check the fscan process, task_id is {ips}")
+            return
+
+        if stdout:
+            
+            try:
+            
+                resultList = []
+                # print(f"[!] Now {ips}")
+                singleResult = str(stdout.decode())
+
+                for i in singleResult.split("\n"):
+                    resultList.append(i)
+
+                # print(f"[+] Task {ips} is completely: {resultList[-3]}")
+                print(f"{resultList[-1]} ==> \033[31;1m{ips}\033[0m ==> Count: \033[31;1m{resultList[-2]}\033[0m")
+
+                # logging.info(f"{resultList[-1]} ==> {ips} ==> Count: {resultList[-2]}")
+                loginfo = f"{resultList[-1]} ==> {ips} ==> Count: {resultList[-2]}"
+                return loginfo
+                
+                
+                # pass
+                # print(str(stdout))
+
+            # except Exception as e:
+            #     print(e)
+            
+            except UnicodeDecodeError as u:
+                scan_end_time = time.time()
+                scan_costs_time = scan_end_time - scan_start_time
+                
+                # print(f"[-] Decoding error on \033[31;1m{ips}\033[0m, but scan works and it costs \033[31;1m{scan_costs_time}\033[0m")
+
+                print(f"[*] 扫描结束,耗时: {round(scan_costs_time, 7)}s ==> \033[31;1m{ips}\033[0m ==> Count: Decode error!")
+
+                # logging.info(f"[*] 扫描结束,耗时: {round(scan_costs_time, 7)}s ==> {ips} ==> Count: Decode error!")
+                loginfo2 = f"[*] 扫描结束,耗时: {round(scan_costs_time, 7)}s ==> {ips} ==> Count: Decode error!"
+                return loginfo2
+                
+                # print(u)
+                pass
+
+        if stderr:
+            pass
+        
+
+        # scan_end_time = time.time()
+        # scan_costs_time = scan_end_time - scan_start_time
+        
+        # print(f"[+] Task \033[31;1m{ips}\033[0m is completely, it costs \033[31;1m{scan_costs_time}s\033[0m")
 
     return
 
@@ -275,7 +323,10 @@ async def entry(ips):
         result = await pool.map(run_fs, ips)
 
     if result:
-        print("[+] Scan complete.")
+        for i in result:
+            logging.info(i)
+        
+        # print("[+] Scan complete.")
         return result
 
 
@@ -287,21 +338,51 @@ if __name__ == "__main__":
     # init the directory
     init_dir()
 
+    # logging
+    if not os.path.exists(f"{scanResult_path}\\ScanLogs\\info.log"):
+        fo = open(f"{scanResult_path}\\ScanLogs\\info.log", "a")
+        fo.close()
+
+    logging.basicConfig(
+        level = logging.INFO,
+        filename = f"{scanResult_path}\\ScanLogs\\info.log",
+        filemode = 'a',
+        format = '%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s'
+    )
+
+    logging.info("[+] Now start to scan!")
+
     # get ip lists that netmask is /24
     iplist = handle_ip4Scan(ip_list)
 
+    # 生成的 iplist_2 是一个嵌套二维数组，里面有 8 个元素，每个元素含 32 个 C 段
+    step = 32
+    iplist_2 = [iplist[i:i+step] for i in range(0, len(iplist),step)]
+
+    # print(iplist_2[0])
+    # print(len(iplist_2[0]))
+
     # print(os.cpu_count())
 
-    task_1 = asyncio.ensure_future(entry(iplist))
-    loop = asyncio.get_event_loop()
-
     start_time = time.time()
-    loop.run_until_complete(task_1)
+
+    # task_1 = asyncio.ensure_future(entry(iplist))
+    
+    for ip_segments_2_scan in iplist_2:
+        print(f"[+] Now scan {ip_segments_2_scan}")
+        print(f"[+] the segments length is {len(ip_segments_2_scan)} !!!!")
+        task_1 = asyncio.ensure_future(entry(ip_segments_2_scan))
+        loop = asyncio.get_event_loop()
+
+        loop.run_until_complete(task_1)
 
     # output the result.
     print("[+] Now output the csv report...")
+    logging.info("[+] Now output the csv report...")
     outputCsv(scanResult_path, merge_result2csv())
 
     end_time = time.time()
     print("[+] Task complete.")
     print(f"[+] All tasks cost \033[31;1m{end_time - start_time}s\033[0m.")
+    print(f"[+] It costs \033[31;1m{end_time - start_time}s\033[0m!")
+    logging.info(f"[+] All task complete. It costs {end_time - start_time}s!")

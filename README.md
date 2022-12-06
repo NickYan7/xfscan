@@ -25,6 +25,12 @@ fscanoutput (https://github.com/ZororoZ/fscanOutput)
     \_ 删除 fscan 扫描临时结果目录；
     \_ ...
 
-
 ## Notice
+
 修改全局变量 `ip_lists` 为待扫描的 IP 段，fscan 扫描命令可自定义变量 `scan_cmd` ，最后 `python3 xfscan.py` 运行。
+
+## Update
+
+1、加入 `logging` 库，将每次扫描的时间、对象均记录在 `\scanResult\ScanLog\info.log` 目录下；
+
+2、对传入的 IP C 段做划分，由 `step` 变量控制，即每次并发扫描 n 个 C 段。
