@@ -34,3 +34,7 @@ fscanoutput (https://github.com/ZororoZ/fscanOutput)
 1、加入 `logging` 库，将每次扫描的时间、对象均记录在 `\scanResult\ScanLog\info.log` 目录下；
 
 2、对传入的 IP C 段做划分，由 `step` 变量控制，即每次并发扫描 n 个 C 段。
+
+## Demo
+
+![record](README/record.jpg)
